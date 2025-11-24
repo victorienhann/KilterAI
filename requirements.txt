@@ -1,7 +1,14 @@
 numpy
 matplotlib
 h5py
-torch
 pandas
 requests
 tqdm
+
+# GPU (CUDA 13.0) – Windows/Linux
+torch==2.9.1+cu130; platform_system != "Darwin"
+
+# CPU/MPS – macOS
+torch==2.9.1; platform_system == "Darwin"
+
+--extra-index-url https://download.pytorch.org/whl/cu130

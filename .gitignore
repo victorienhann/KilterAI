@@ -1,2 +1,13 @@
 .venv
-resources
+
+resources/*
+!ressources/
+!ressources/databases/
+!ressources/datasets/
+!ressources/images/
+
+*.pyc
+*.pyo
+*.pyd
+
+./.idea

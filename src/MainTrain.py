@@ -33,7 +33,7 @@ if not bis :
     matrix = generate(model, angle, GRADES[grade])
 else :
     model = VariationalAutoEncoderBis(H, W, angle_min, angle_max, grades_min, grades_max, latent_dim=16)
-    trainBis(model, loaderBis, epochs=30)
+    trainBis(model, loaderBis, epochs=10)
     matrix = generateBis(model, angle, GRADES[grade])
 
 save_model(model, name, description)

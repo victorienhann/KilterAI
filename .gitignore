@@ -5,7 +5,7 @@ resources/*
 !ressources/databases/
 !ressources/datasets/
 !ressources/images/
-!resources/models/
+!ressources/models/
 
 *.pyc
 *.pyo

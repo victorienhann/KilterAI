@@ -1,6 +1,6 @@
 from src.ai.generator.VariationalAutoencoder import VariationalAutoEncoder
 from src.utils import Utils, Board
-import torch
+
 
 board_type = "kilter"
 connection = Utils.connect_to_database(board_type)

@@ -4,6 +4,7 @@ h5py
 pandas
 requests
 tqdm
+streamlit
 
 # GPU (CUDA 13.0) – Windows/Linux
 torch==2.9.1+cu130; platform_system != "Darwin"

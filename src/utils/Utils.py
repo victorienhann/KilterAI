@@ -1,3 +1,4 @@
+import collections
 import io
 import os
 import re
@@ -38,7 +39,7 @@ ROLES = {"start" : [12, 20, 24, 28, 32, 42],
          "finish" : [14, 22, 26, 30, 34, 44],
          "foot" : [15, 23, 27, 31, 35, 45]}
 
-images_path = "../resources/images/"
+images_path = "./resources/images/"
 
 def download_images(board, name, description):
     """
@@ -52,7 +53,7 @@ def download_images(board, name, description):
     os.makedirs(output_directory, exist_ok=True)
     api_host = f"https://api.{HOST_BASES[board]}.com"
 
-    database_path = f"../resources/databases/{board}.sqlite"
+    database_path = f"./resources/databases/{board}.sqlite"
     connection = sqlite3.connect(database_path)
     res = pd.read_sql_query(QUERIES["images"], connection, None, None, {'name': name, 'description': description})
     connection.close()
@@ -195,6 +196,17 @@ def load_model(name, description):
     model.load_state_dict(ckpt["state_dict"])
     print(f"Model successfully loaded from {filename}")
     return model
+
+def load_name_and_description(connection):
+    df = pd.read_sql_query(QUERIES["name_description"], connection)
+    dict = collections.defaultdict(list)
+    for row in df.values:
+        if row[0] not in dict.keys():
+            dict[row[0]] = [row[1]]
+        else :
+            dict[row[0]].append(row[1])
+    return dict
+
 
 
 

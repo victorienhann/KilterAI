@@ -26,5 +26,6 @@ QUERIES = {
                FROM product_sizes_layouts_sets AS psls
                JOIN product_sizes AS ps
                ON ps.id = psls.product_size_id 
-               WHERE ps.name = $name AND ps.description = $description """
+               WHERE ps.name = $name AND ps.description = $description """,
+    "name_description" : """SELECT name, description FROM product_sizes"""
    }

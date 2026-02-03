@@ -1,7 +1,6 @@
-from matplotlib import pyplot as plt
+
 from torch.utils.data import DataLoader
 
-from src.Main import board
 from src.ai.generator.VariationalAutoEncoderBis import VariationalAutoEncoderBis, trainBis, TrainingDatasetBis, \
     generateBis
 from src.ai.generator.VariationalAutoencoder import VariationalAutoEncoder, TrainingDataset, generate
@@ -26,10 +25,10 @@ angle = 35
 grade = "6b"
 
 
-bis = True
+bis = False
 if not bis :
     model = VariationalAutoEncoder(H, W, angle_min, angle_max, grades_min, grades_max, latent_dim=16)
-    train(model, loader, epochs=50)
+    train(model, loader, epochs=30)
     matrix = generate(model, angle, GRADES[grade])
 else :
     model = VariationalAutoEncoderBis(H, W, angle_min, angle_max, grades_min, grades_max, latent_dim=16)

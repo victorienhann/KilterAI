@@ -1,32 +1,26 @@
 import numpy as np
+from tqdm import tqdm
 import torch
 from torch.utils.data import Dataset
 from collections import Counter
 
 
 def compute_proportions(matrices):
-    total_holds = 0
-    total_starts = 0
-    total_middles = 0
-    total_finishes = 0
-    total_feet = 0
-    for matrix in matrices:
-        for line in matrix:
-            for element in line:
-                total_holds += 1
-                if element == 1:
-                    total_starts += 1
-                if element == 2:
-                    total_middles += 1
-                if element == 3:
-                    total_finishes += 1
-                if element == 4:
-                    total_feet += 1
+    # Stack matrices into one big 3D array
+    big_array = np.stack(matrices)  # shape: (num_matrices, rows, cols)
+    total_holds = big_array.size
+
+    total_starts = np.sum(big_array == 1)
+    total_middles = np.sum(big_array == 2)
+    total_finishes = np.sum(big_array == 3)
+    total_feet = np.sum(big_array == 4)
+
     proportions_start = total_starts / total_holds
-    proportions_middle = total_middles / total_starts
-    proportions_finish = total_finishes / total_feet
-    proportions_feet = total_feet / total_finishes
+    proportions_middle = total_middles / total_holds
+    proportions_finish = total_finishes / total_holds
+    proportions_feet = total_feet / total_holds
     proportions_unused = 1 - (proportions_start + proportions_middle + proportions_finish + proportions_feet)
+
     return [proportions_unused, proportions_start, proportions_middle, proportions_finish, proportions_feet]
 
 #Training dataset

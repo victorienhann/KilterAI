@@ -80,8 +80,8 @@ class Board:
 
         for i, climb in enumerate(tqdm(climbs, desc=f"Building dataset for board {self.description} {self.name}" , unit="climbs")):
             #For test purpose
-            if i > 1000 :
-                break
+            #if i > 1000 :
+                #break
 
             starts_climb, middles_climb, finishes_climb, feet_climb = extract_roles(climb)
             if len(starts_climb) <= 2 and len(finishes_climb) <= 2:

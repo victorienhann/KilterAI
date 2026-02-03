@@ -5,6 +5,7 @@ import re
 import sqlite3
 import zipfile
 import torch
+from pathlib import Path
 
 import h5py
 import pandas as pd
@@ -39,7 +40,6 @@ ROLES = {"start" : [12, 20, 24, 28, 32, 42],
          "finish" : [14, 22, 26, 30, 34, 44],
          "foot" : [15, 23, 27, 31, 35, 45]}
 
-images_path = "./resources/images/"
 
 def download_images(board, name, description):
     """
@@ -49,11 +49,12 @@ def download_images(board, name, description):
     :param name: Board name
     :param description: Board description
     """
-    output_directory = os.path.join(images_path, name + "_" + description)
+    output_directory = os.path.join(get_images_path(), name + "_" + description)
     os.makedirs(output_directory, exist_ok=True)
     api_host = f"https://api.{HOST_BASES[board]}.com"
 
-    database_path = f"./resources/databases/{board}.sqlite"
+
+    database_path =  get_database_path() / f"{board}.sqlite"
     connection = sqlite3.connect(database_path)
     res = pd.read_sql_query(QUERIES["images"], connection, None, None, {'name': name, 'description': description})
     connection.close()
@@ -95,7 +96,7 @@ def download_database(board):
         },
     )
     response.raise_for_status()
-    output_file = f"../resources/databases/{board}.sqlite"
+    output_file = get_database_path() / f"{board}.sqlite"
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     bundle_file = io.BytesIO(response.content)
     with zipfile.ZipFile(bundle_file, "r") as zip_file:
@@ -111,7 +112,7 @@ def download_database(board):
                     output_file.write(main_zip.read("assets/db.sqlite3"))
 
 def connect_to_database(board):
-    database_path = f"../resources/databases/{board}.sqlite"
+    database_path = get_database_path() / f"{board}.sqlite"
     if not os.path.exists(database_path):
         print(f"Missing database for {board} board")
         print(f"Downloading database for {board} board ...")
@@ -158,10 +159,8 @@ def make_circle(color, size=50):
     draw.ellipse([left_up, right_down], outline=color, width=4)
     return circle
 
-datasets_path = "../resources/datasets"
-
 def save_dataset(dataset, name, description):
-    filename = f"{datasets_path}/{name}_{description}.h5"
+    filename = get_datasets_path() / f"{name}_{description}.h5"
     with h5py.File(filename, "w") as f:
         f.create_dataset("matrices", data=dataset.matrices)
         f.create_dataset("angles", data=dataset.angles)
@@ -169,13 +168,12 @@ def save_dataset(dataset, name, description):
         print(f"Dataset successfully exported to {filename}")
 
 def load_dataset(name, description):
-    filename = f"{datasets_path}/{name}_{description}.h5"
+    filename = get_datasets_path() / f"{name}_{description}.h5"
+    print(f"Loading dataset for board {name} {description}")
     return h5py.File(filename, "r")
 
-models_path = "../resources/models"
-
 def save_model(model, name, description):
-    filename = f"{models_path}/{name}_{description}.pth"
+    filename = get_models_path() / f"{name}_{description}.pth"
     torch.save({
         "state_dict": model.state_dict(),
         "H" : model.H,
@@ -189,7 +187,7 @@ def save_model(model, name, description):
     print(f"Model successfully saved to {filename}")
 
 def load_model(name, description):
-    filename = f"{models_path}/{name}_{description}.pth"
+    filename = get_models_path() / f"/{name}_{description}.pth"
 
     ckpt = torch.load(filename, weights_only=False)  # autorise la lecture complète
     model = VariationalAutoEncoder(ckpt["H"], ckpt["W"], ckpt["angles_min"], ckpt["angles_max"], ckpt["grades_min"], ckpt["grades_max"], ckpt["latent_dim"])
@@ -206,6 +204,27 @@ def load_name_and_description(connection):
         else :
             dict[row[0]].append(row[1])
     return dict
+
+def get_resources_path():
+    path = Path(__file__).resolve()
+    for parent in path.parents:
+        if parent.name == "KilterAI":
+            return parent / "resources"
+    raise RuntimeError("Dossier racine KilterAI introuvable")
+
+def get_database_path():
+    return get_resources_path() / "databases"
+
+def get_datasets_path():
+    return get_resources_path() / "datasets"
+
+def get_images_path():
+    return get_resources_path() / "images"
+
+def get_models_path():
+    return get_resources_path() / "models"
+
+
 
 
 

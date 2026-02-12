@@ -1,3 +1,5 @@
+import re
+
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -73,33 +75,30 @@ class Board:
     def build_dataset(self):
         df = self.extract_data()
         climbs = df['frames']
-        matrices = []
-        angles = []
+        x_coords = []
+        y_coords = []
         grades = []
+        angles = []
 
 
-        for i, climb in enumerate(tqdm(climbs, desc=f"Building dataset for board {self.description} {self.name}" , unit="climbs")):
+        for i, climb in enumerate(tqdm(climbs, desc="Building dataset for board " + self.description + " " + self.name , unit="rows")):
             #For test purpose
             #if i > 1000 :
-                #break
+             #   break
 
-            starts_climb, middles_climb, finishes_climb, feet_climb = extract_roles(climb)
-            if len(starts_climb) <= 2 and len(finishes_climb) <= 2:
-                start_coords = [coord for coords in get_xy_for_ids(self.mapping, starts_climb).values() for coord in
-                                coords]
-                middle_coords = [coord for coords in get_xy_for_ids(self.mapping, middles_climb).values() for coord in
-                                 coords]
-                finish_coords = [coord for coords in get_xy_for_ids(self.mapping, finishes_climb).values() for coord in
-                                 coords]
-                feet_coords = [coord for coords in get_xy_for_ids(self.mapping, feet_climb).values() for coord in
-                               coords]
-                matrix = self.create_matrix(start_coords, middle_coords, finish_coords, feet_coords)
-                matrices.append(matrix)
-                angles.append(df['angle'][i])
-                grades.append(round(df['display_difficulty'][i]))
+            holds =  [int(n) for n in re.findall(r'p(\d+)r', climb)]
+            coords = get_xy_for_ids(self.mapping, holds)
+            all_coords = []
+            for coord_list in coords.values():
+                all_coords.extend(coord_list)
+            x_coords.append([x for x,y in all_coords])
+            y_coords.append([y for x,y in all_coords])
+
+            angles.append(df['angle'][i])
+            grades.append(round(df['display_difficulty'][i]))
 
 
-        dataset = KilterDataset(matrices, angles, grades)
+        dataset = KilterDataset(x_coords,y_coords, angles, grades)
         save_dataset(dataset, self.name, self.description)
 
     def visualize_climb(self, matrix):

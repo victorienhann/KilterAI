@@ -76,9 +76,10 @@ class DataSetBuilder:
     def build_dataset(self, name, description):
         df = self.extract_data(name, description)
         climbs = df['frames']
-        matrices = []
-        angles = []
+        x_coords = []
+        y_coords = []
         grades = []
+        angles = []
 
 
         for i, climb in enumerate(tqdm(climbs, desc="Building dataset for board " + self.board.description + " " + self.board.get_name() , unit="rows")):
@@ -86,21 +87,14 @@ class DataSetBuilder:
             if i > 1000 :
                 break
 
-            starts_climb, middles_climb, finishes_climb, feet_climb = extract_roles(climb)
-            if len(starts_climb) <= 2 and len(finishes_climb) <= 2:
-                start_coords = [coord for coords in get_xy_for_ids(self.mapping, starts_climb).values() for coord in
-                                coords]
-                middle_coords = [coord for coords in get_xy_for_ids(self.mapping, middles_climb).values() for coord in
-                                 coords]
-                finish_coords = [coord for coords in get_xy_for_ids(self.mapping, finishes_climb).values() for coord in
-                                 coords]
-                feet_coords = [coord for coords in get_xy_for_ids(self.mapping, feet_climb).values() for coord in
-                               coords]
-                matrix = self.create_matrix(start_coords, middle_coords, finish_coords, feet_coords)
-                matrices.append(matrix)
-                angles.append(df['angle'][i])
-                grades.append(round(df['display_difficulty'][i]))
+            holds =  [int(n) for n in re.findall(r'[a-z]([0-9]+)', climb)]
+            coords = get_xy_for_ids(self.mapping, holds)
+            x_coords.append([x for x,y in coords])
+            y_coords.append([x for x,y in coords])
+
+            angles.append(df['angle'][i])
+            grades.append(round(df['display_difficulty'][i]))
 
 
-        dataset = KilterDataset(matrices, angles, grades)
+        dataset = KilterDataset(x_coords,y_coords, angles, grades)
         return dataset

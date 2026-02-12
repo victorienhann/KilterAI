@@ -4,6 +4,8 @@ import os
 import re
 import sqlite3
 import zipfile
+
+import numpy as np
 import torch
 from pathlib import Path
 
@@ -161,11 +163,26 @@ def make_circle(color, size=50):
 
 def save_dataset(dataset, name, description):
     filename = get_datasets_path() / f"{name}_{description}.h5"
+
+    x_padded = pad_sequences(dataset.x_coords)
+    y_padded = pad_sequences(dataset.y_coords)
+
     with h5py.File(filename, "w") as f:
-        f.create_dataset("matrices", data=dataset.matrices)
+        f.create_dataset("x_coords", data=x_padded)
+        f.create_dataset("y_coords", data=y_padded)
         f.create_dataset("angles", data=dataset.angles)
         f.create_dataset("grades", data=dataset.grades)
-        print(f"Dataset successfully exported to {filename}")
+
+    print(f"Dataset successfully exported to {filename}")
+
+def pad_sequences(sequences, pad_value=-1):
+    max_len = max(len(seq) for seq in sequences)
+    padded = np.full((len(sequences), max_len), pad_value)
+
+    for i, seq in enumerate(sequences):
+        padded[i, :len(seq)] = seq
+
+    return padded
 
 def load_dataset(name, description):
     filename = get_datasets_path() / f"{name}_{description}.h5"

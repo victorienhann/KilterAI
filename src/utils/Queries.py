@@ -6,13 +6,14 @@ QUERIES = {
                JOIN product_sizes AS ps
                ON ps.id = psls.product_size_id 
                WHERE ps.name = $name AND ps.description = $description """,
-    "holds" : """ 
-                SELECT placements.id, mirrored_placements.id, holes.x, holes.y 
-                FROM holes INNER JOIN placements 
-                ON placements.hole_id = holes.id AND (placements.set_id = $set_id_1 OR placements.set_id = $set_id_2)  
-                AND placements.layout_id = $layout_id LEFT JOIN placements mirrored_placements 
-                ON mirrored_placements.hole_id = holes.mirrored_hole_id AND (mirrored_placements.set_id = $set_id_1 
-                OR mirrored_placements.set_id = $set_id_2)  AND mirrored_placements.layout_id = $layout_id""",
+    "holds" : """
+                SELECT placements.id, mirrored_placements.id, holes.x, holes.y
+                FROM holes INNER JOIN placements
+                ON placements.hole_id = holes.id AND (placements.set_id = $set_id_1 OR placements.set_id = $set_id_2)
+                AND placements.layout_id = $layout_id LEFT JOIN placements mirrored_placements
+                ON mirrored_placements.hole_id = holes.mirrored_hole_id AND (mirrored_placements.set_id = $set_id_1
+                OR mirrored_placements.set_id = $set_id_2)  AND mirrored_placements.layout_id = $layout_id
+                ORDER BY holes.id""",
     "edges" : """
                 SELECT edge_left, edge_right, edge_bottom, edge_top
                 FROM product_sizes 

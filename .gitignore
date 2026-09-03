@@ -1,14 +1,22 @@
-.venv
+# Whitelist approach: ignore everything by default, then explicitly un-ignore
+# only what should be tracked - .py source files, requirements.txt, this file,
+# and an empty resources/ folder skeleton (structure only, never its data:
+# databases, built datasets, trained models, downloaded board images).
+*
+!*/
 
-resources/*
-!ressources/
-!ressources/databases/
-!ressources/datasets/
-!ressources/images/
-!ressources/models/
+# Directories that must stay fully excluded even though "*" alone would let
+# git traverse into them looking for *.py to un-ignore below.
+.venv/
+.idea/
+.vscode/
+__pycache__/
 
-*.pyc
-*.pyo
-*.pyd
+!*.py
+!requirements.txt
+!.gitignore
 
-.idea
+!resources/databases/.gitkeep
+!resources/datasets/.gitkeep
+!resources/images/.gitkeep
+!resources/models/.gitkeep

@@ -24,3 +24,8 @@ GRADES = {
     "8c" : 32,
     "8c+" : 33
 }
+
+def grade_label(value):
+    """The GRADES label (e.g. "7a") whose numeric value is closest to `value`
+    - for turning a predicted/generated numeric grade back into something readable."""
+    return min(GRADES.items(), key=lambda kv: abs(kv[1] - value))[0]

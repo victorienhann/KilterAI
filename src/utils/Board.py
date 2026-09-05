@@ -116,8 +116,18 @@ class Board:
                     tokens[idx] = label
         return tokens
 
-    def build_dataset(self):
+    def build_dataset(self, limit=None):
+        """Build the dataset from this board's climbs.
+
+        :param limit: if given and smaller than the number of available climbs,
+            use a random (but reproducible) sample of at most this many instead
+            of all of them - handy for quick iteration/testing without waiting
+            on the full dataset.
+        """
         df = self.extract_data()
+        if limit is not None and len(df) > limit:
+            print(f"Limiting to a random sample of {limit} climbs (out of {len(df)})")
+            df = df.sample(n=limit, random_state=42).reset_index(drop=True)
         climbs = df['frames']
         tokens = []
         angles = []
@@ -146,8 +156,11 @@ class Board:
         }
 
         edge_left, edge_right, edge_bottom, edge_top = self.get_edges()
-        # Getting the board image without markers
-        image = self.template
+        # Draw on a copy - self.template is cached and shared across calls
+        # (load_template() only fetches it once), so pasting onto it directly
+        # would leave every previous visualize_climb() call's circles on the
+        # image too.
+        image = self.template.copy()
         width, height = self.template.size
 
         xSpacing = width / (edge_right - edge_left)

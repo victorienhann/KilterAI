@@ -14,6 +14,7 @@ import requests
 from PIL import ImageDraw, Image
 
 from src.ai.generator.TokenVariationalAutoencoder import TokenVariationalAutoEncoder
+from src.ai.grader.GradeRegressor import GradeRegressor
 from src.utils.Queries import QUERIES
 
 # All resource paths are anchored to the repo root regardless of the current
@@ -213,6 +214,28 @@ def load_model(name, description):
     model = TokenVariationalAutoEncoder(ckpt["vocab_size"], ckpt["angles_min"], ckpt["angles_max"], ckpt["grades_min"], ckpt["grades_max"], ckpt["latent_dim"])
     model.load_state_dict(ckpt["state_dict"])
     print(f"Model successfully loaded from {filename}")
+    return model
+
+def save_grader_model(model, name, description):
+    os.makedirs(models_path, exist_ok=True)
+    filename = f"{models_path}/{name}_{description}_grader.pth"
+    torch.save({
+        "state_dict": model.state_dict(),
+        "vocab_size": model.vocab_size,
+        "angles_min": model.angles_min,
+        "angles_max": model.angles_max,
+        "grades_min": model.grades_min,
+        "grades_max": model.grades_max,
+    }, filename)
+    print(f"Grader model successfully saved to {filename}")
+
+def load_grader_model(name, description):
+    filename = f"{models_path}/{name}_{description}_grader.pth"
+
+    ckpt = torch.load(filename, weights_only=False)
+    model = GradeRegressor(ckpt["vocab_size"], ckpt["angles_min"], ckpt["angles_max"], ckpt["grades_min"], ckpt["grades_max"])
+    model.load_state_dict(ckpt["state_dict"])
+    print(f"Grader model successfully loaded from {filename}")
     return model
 
 def load_name_and_description(connection):

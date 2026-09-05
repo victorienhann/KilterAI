@@ -116,12 +116,24 @@ class TokenVariationalAutoEncoder(nn.Module):
 
 
 def loss_fn(presence_logits, type_logits, presence_targets, type_targets, mu, logvar,
-            pos_weight=None, type_weight=None, kl_weight=1.0):
+            pos_weight=None, type_weight=None, kl_weight=1.0, free_bits=0.1):
     """
     presence_logits: (N,V) raw logits
     type_logits: (N,V,4) raw logits for classes 1..4
     presence_targets: (N,V) 0/1
     type_targets: (N,V) 0..4 (0 where no hold)
+
+    free_bits: KL "budget" (in nats) per latent dimension that isn't
+    penalized. Without this, the cheapest way to minimize the raw KL term is
+    to collapse every dimension's posterior exactly onto the prior (mu=0,
+    logvar=0) - z then carries no information about the specific input, the
+    decoder learns to ignore it and reconstructs only from the (angle, grade)
+    conditioning, and every sample at a given (angle, grade) comes out
+    looking like the same "average" climb regardless of z (posterior
+    collapse - a well-known VAE failure mode). Clamping each dimension's KL
+    to at least free_bits removes the incentive to collapse below that
+    budget, so the gradient pushing z toward being informative doesn't
+    vanish to zero.
     """
     presence_loss = F.binary_cross_entropy_with_logits(
         presence_logits, presence_targets.float(), pos_weight=pos_weight)
@@ -134,7 +146,10 @@ def loss_fn(presence_logits, type_logits, presence_targets, type_targets, mu, lo
     else:
         type_loss = torch.tensor(0.0, device=presence_logits.device)
 
-    kl = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
+    kl_per_dim = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())  # (N, latent_dim)
+    kl_per_dim = torch.clamp(kl_per_dim, min=free_bits)
+    kl = kl_per_dim.sum(dim=1).mean()
+
     total = presence_loss + type_loss + kl_weight * kl
     return total, presence_loss.detach(), type_loss.detach(), kl.detach()
 
@@ -147,10 +162,15 @@ def _pick_device():
     return "cpu"
 
 
-def train(model, loader, epochs=30, lr=1e-3, device=None):
+def train(model, loader, epochs=30, lr=1e-3, device=None, free_bits=0.1):
     """Trains the model in place. Returns the per-epoch loss history (a list of
     dicts: epoch, loss, presence, type, kl), e.g. for plotting loss vs epoch
-    afterward with matplotlib."""
+    afterward with matplotlib.
+
+    free_bits: see loss_fn - raise it if generated samples still look too
+    similar to each other after retraining (posterior collapse), lower it
+    (toward 0) if training seems to spend too much capacity on KL at the
+    expense of reconstruction quality (presence/type loss staying high)."""
     device = device or _pick_device()
     print(f"Using {device} device")
     model.to(device)
@@ -182,7 +202,11 @@ def train(model, loader, epochs=30, lr=1e-3, device=None):
     type_weight = (type_weight / type_weight.mean()).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    kl_anneal_epochs = max(1, epochs // 5)
+    # Ramp over the first half of training rather than the first fifth - a
+    # fast ramp reaches full KL pressure before the decoder has had much
+    # chance to learn to lean on z, which pushes toward posterior collapse
+    # (see loss_fn's free_bits docstring).
+    kl_anneal_epochs = max(1, epochs // 2)
 
     history = []
     for epoch in range(1, epochs + 1):
@@ -202,7 +226,7 @@ def train(model, loader, epochs=30, lr=1e-3, device=None):
             presence_logits, type_logits, mu, logvar = model(x, cond)
             loss, pres_l, type_l, kl = loss_fn(
                 presence_logits, type_logits, presence, types, mu, logvar,
-                pos_weight=pos_weight, type_weight=type_weight, kl_weight=kl_weight)
+                pos_weight=pos_weight, type_weight=type_weight, kl_weight=kl_weight, free_bits=free_bits)
 
             optimizer.zero_grad()
             loss.backward()
@@ -223,8 +247,50 @@ def train(model, loader, epochs=30, lr=1e-3, device=None):
     return history
 
 
-def generate(model, angle, grade, threshold=0.5, device=None):
-    """Returns a length-vocab_size numpy array with values 0..4 (see create_token_vector)."""
+def _pick_role(candidates, scores, count_range, second_pick_min_prob):
+    """Among `candidates` (hold indices), choose which get one role, ranked by
+    `scores` (that role's probability for each candidate). Always takes the
+    single best; takes a second only if count_range allows it and the model is
+    at least second_pick_min_prob confident in it. Returns (chosen, remaining)
+    - remaining being the candidates not chosen, for the next role to draw from."""
+    if len(candidates) == 0:
+        return candidates, candidates
+    order = torch.argsort(scores[candidates], descending=True)
+    ranked = candidates[order]
+    n = 1
+    if len(ranked) > 1 and count_range[1] > 1 and scores[ranked[1]] >= second_pick_min_prob:
+        n = 2
+    n = min(n, count_range[1], len(ranked))
+    return ranked[:n], ranked[n:]
+
+
+def generate(model, angle, grade, threshold=None, device=None,
+             start_count_range=(1, 2), finish_count_range=(1, 2), second_pick_min_prob=0.5, verbose=True):
+    """Returns a length-vocab_size numpy array with values 0..4 (see create_token_vector).
+
+    Presence (which holds are used at all): by default (threshold=None), picks
+    the k most likely holds, where k is the model's own expected count - the
+    sum of its per-hold presence probabilities - rather than a fixed
+    presence-probability cutoff. A fixed threshold is brittle: how many holds
+    clear it depends on the absolute scale the presence loss happens to push
+    probabilities to (e.g. how strongly pos_weight is tempered, how many
+    epochs it's had), so it tends to swing between "too many holds" and "too
+    few holds" as that scale shifts, rather than tracking what the model
+    actually believes. Summing probabilities sidesteps that: it stays a
+    reasonable count estimate even when the individual probabilities are
+    shifted up or down together. Pass an explicit threshold (e.g. 0.5) to use
+    the old fixed-cutoff behavior instead - role counts are still enforced
+    either way.
+
+    Roles (start/middle/finish/foot): every real climb in the training data
+    has 1 or 2 start holds and 1 or 2 finish holds (Board.build_dataset only
+    keeps climbs with len(starts)<=2 and len(finishes)<=2, and a climb always
+    needs at least one of each to be climbable) - independent per-hold argmax
+    has no way to guarantee that, so start/finish are instead each assigned
+    their most-confident candidate(s) among the selected holds first (see
+    start_count_range/finish_count_range/second_pick_min_prob), and only the
+    leftover holds get a plain middle-vs-foot argmax.
+    """
     device = device or next(model.parameters()).device
     model.eval()
 
@@ -235,11 +301,39 @@ def generate(model, angle, grade, threshold=0.5, device=None):
 
     with torch.no_grad():
         presence_logits, type_logits = model.decoder(z, cond)
-        presence = torch.sigmoid(presence_logits)[0] >= threshold  # (V,)
-        types = torch.argmax(torch.softmax(type_logits, dim=-1), dim=-1)[0] + 1  # (V,) in 1..4
+        presence_probs = torch.sigmoid(presence_logits)[0]  # (V,)
+        type_probs = torch.softmax(type_logits, dim=-1)[0]  # (V,4): start,middle,finish,foot
 
+        if threshold is not None:
+            presence = presence_probs >= threshold
+        else:
+            k = round(presence_probs.sum().item())
+            presence = torch.zeros_like(presence_probs, dtype=torch.bool)
+            top_indices = torch.topk(presence_probs, min(model.vocab_size, max(k, 1))).indices
+            presence[top_indices] = True
+
+        # Need room for at least one start and one finish hold - top up with
+        # the next most-likely holds if too few cleared presence selection.
+        min_needed = start_count_range[0] + finish_count_range[0]
+        if presence.sum().item() < min_needed:
+            scored = presence_probs.masked_fill(presence, -1.0)
+            extra = torch.topk(scored, min_needed - int(presence.sum().item())).indices
+            presence[extra] = True
+
+        pool = presence.nonzero(as_tuple=True)[0]
         result = torch.zeros(model.vocab_size, dtype=torch.long, device=device)
-        result[presence] = types[presence]
 
-    print("holds generated:", int(presence.sum().item()))
+        start_idx, pool = _pick_role(pool, type_probs[:, 0], start_count_range, second_pick_min_prob)
+        finish_idx, pool = _pick_role(pool, type_probs[:, 2], finish_count_range, second_pick_min_prob)
+        result[start_idx] = 1
+        result[finish_idx] = 3
+
+        if len(pool) > 0:
+            is_foot = type_probs[pool, 3] > type_probs[pool, 1]  # middle vs foot only
+            result[pool] = torch.where(is_foot, torch.tensor(4, device=device), torch.tensor(2, device=device))
+
+    if verbose:
+        n_holds = int(presence.sum().item())
+        print(f"holds generated: {n_holds} (start={len(start_idx)}, finish={len(finish_idx)}, "
+              f"model's expected count: {presence_probs.sum().item():.1f})")
     return result.cpu().numpy().astype(np.int8)

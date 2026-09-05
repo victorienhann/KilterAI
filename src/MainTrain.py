@@ -33,24 +33,10 @@ angle = 35
 grade = "6b"
 
 model = TokenVariationalAutoEncoder(vocab_size, angle_min, angle_max, grades_min, grades_max, latent_dim=16)
-history = train(model, loader, epochs=10)
+history = train(model, loader, epochs=30, lr=1e-3, free_bits=0.1)
 
 # Save right after training, before anything else that could fail (plotting,
 # generating, visualizing) - a training run is expensive, a crash downstream
 # shouldn't be able to lose it.
 save_model(model, name, description)
 
-matrix = generate(model, angle, GRADES[grade])
-
-epochs_seen = [h["epoch"] for h in history]
-plt.plot(epochs_seen, [h["loss"] for h in history], label="total")
-plt.plot(epochs_seen, [h["presence"] for h in history], label="presence")
-plt.plot(epochs_seen, [h["type"] for h in history], label="type")
-plt.plot(epochs_seen, [h["kl"] for h in history], label="kl")
-plt.xlabel("epoch")
-plt.ylabel("loss")
-plt.legend()
-plt.title(f"Training loss - {name} {description}")
-plt.show()
-
-board.visualize_climb(matrix).show()

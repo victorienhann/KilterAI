@@ -21,4 +21,7 @@ name = "16 x 12"
 description = "Super Wide"
 board = Board.create_board(connection, board_type, name, description)
 
-board.build_dataset()
+# For quick iteration/testing, cap how many climbs get used - set to None to
+# use every available climb (this is what should run before real training).
+limit = None
+board.build_dataset(limit=limit)
